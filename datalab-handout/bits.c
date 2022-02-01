@@ -287,7 +287,28 @@ int logicalNeg(int x) {
  *  Rating: 4
  */
 int howManyBits(int x) {
-  return 0;
+    // 12 = 0..0 1100     5bit
+    // -5 = 1..1 1011     4bit
+    // 0  = 0..0 0000
+    // 1  = 1..1 1111
+    int flag = (x>>31);
+    int b16,b8,b4,b2,b1;
+    x = (flag & (~x)) | (~flag& x);
+
+    // check if x has at least 16 bits
+    b16 = (!!(x >> 16)) << 4;
+    // if it has, let x = x>>16 to ignore these bits, otherwise do nothing
+    x = x >> b16;
+
+    b8 = (!!(x>>8)) << 3;
+    x = x>> b8;
+    b4 = (!!(x>>4))<<2;
+    x = x>>b4;
+    b2 = (!!(x>>2))<<1;
+    x = x>>b2;
+    b1 = (!!(x>>1));
+    x = x >> b1;
+    return 1+x+b1+b2+b4+b8+b16;
 }
 //float
 /* 
@@ -302,6 +323,28 @@ int howManyBits(int x) {
  *   Rating: 4
  */
 unsigned floatScale2(unsigned uf) {
+    unsigned exp = (uf<<1)>>24;
+    unsigned tail = (uf<<9)>>9;
+    unsigned result;
+    // NAN
+    if(!(exp^0xff) )return uf;
+    if(!exp){
+        result = uf ^ tail;
+        result = result | (tail << 1 );
+        return result;
+    }
+    exp = exp+1;
+    if(!(exp^0xff)){
+        result = uf & (1<<31);
+        result = result | (exp<<23);
+        return result;
+    }
+
+    result = uf & (1 << 31);
+    result = result | (exp << 23);
+    result = result | (tail);
+    return result;
+
   return 2;
 }
 /* 
@@ -317,7 +360,23 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-  return 2;
+    unsigned inf = 0x80000000;
+    unsigned sign = 0x01 & (uf >> 31);
+    int result;
+    int exp = 0xff & (uf>>23) ;
+    unsigned tail = (1<<23) | ((uf<< 9)>>9) ;
+    exp = exp-127 - 23;
+    if(exp<-23)return 0;
+    if(exp>0){
+        result = tail<<exp;
+    }else{
+        result = tail>>(-exp);
+    }
+    if(exp>=8)return inf;
+    if(sign) {
+        result = -result;
+    }
+  return result;
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
@@ -333,5 +392,15 @@ int floatFloat2Int(unsigned uf) {
  *   Rating: 4
  */
 unsigned floatPower2(int x) {
+    unsigned result = 0;
+    // exp range   -126 ~ 127
+    if(x>127)return 0x7f800000;
+    x = x+127;
+    if(x>0){
+        result = result + x;
+        result  = result<< 23;
+        return result;
+    }
+    if(x<=-23)return 0;
     return 2;
 }
